@@ -1,0 +1,107 @@
+[package]
+name = "port-lens"
+version = "0.1.0"
+edition = "2024"
+description = "A beautiful CLI tool to see what's running on your ports"
+license = "MIT"
+autobins = false
+
+[[bin]]
+name = "ports"
+path = "src/bin/ports.rs"
+
+[lib]
+name = "port_lens"
+path = "src/lib.rs"
+
+# ─── Dependencies ─────────────────────────────────────────────────────────────
+
+[dependencies]
+# CLI
+clap = { version = "4", features = ["derive"] }
+
+# Table rendering (static output)
+tabled = { version = "0.17", features = ["ansi"] }
+
+# TUI (watch mode)
+ratatui = { version = "0.29", features = [
+    "scrolling-regions",
+    "unstable-widget-ref",
+] }
+ratatui-macros = "0.6"
+crossterm = { version = "0.28", features = ["event-stream"] }
+
+# Colors & terminal detection
+owo-colors = "4"
+supports-color = "3"
+
+# Interactive prompts
+dialoguer = "0.11"
+
+# Process information
+sysinfo = "0.33"
+
+# Docker API
+bollard = "0.18"
+
+# Async runtime
+tokio = { version = "1", features = [
+    "rt-multi-thread",
+    "macros",
+    "process",
+    "signal",
+    "time",
+] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Error handling
+anyhow = "1"
+thiserror = "2"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Utilities
+unicode-width = "0.2"
+itertools = "0.14"
+which = "7"
+
+# ─── Unix-only ────────────────────────────────────────────────────────────────
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.29", features = ["signal", "process"] }
+libc = "0.2"
+
+# ─── Dev dependencies ─────────────────────────────────────────────────────────
+
+[dev-dependencies]
+pretty_assertions = "1"
+
+# ─── Lints ────────────────────────────────────────────────────────────────────
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+needless_borrow = "deny"
+needless_collect = "deny"
+redundant_clone = "deny"
+redundant_closure = "deny"
+redundant_closure_for_method_calls = "deny"
+uninlined_format_args = "deny"
+unnecessary_to_owned = "deny"
+manual_map = "deny"
+manual_ok_or = "deny"
+manual_flatten = "deny"
+manual_filter = "deny"
+
+# ─── Profiles ─────────────────────────────────────────────────────────────────
+
+[profile.release]
+lto = "fat"
+strip = "symbols"
+codegen-units = 1
