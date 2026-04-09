@@ -158,13 +158,16 @@ fn macos_batch_fetch_cwd_and_cmd(sys: &System) -> (HashMap<u32, PathBuf>, HashMa
 
     // Batch fetch cwd using lsof
     if let Ok(lsof) = which::which("lsof") {
-        let pid_args: Vec<String> = pids.iter().flat_map(|pid| ["-p".to_string(), pid.to_string()]).collect();
+        let pid_args: Vec<String> = pids
+            .iter()
+            .flat_map(|pid| ["-p".to_string(), pid.to_string()])
+            .collect();
         let args: Vec<&str> = std::iter::once("-a")
             .chain(std::iter::once("-d"))
             .chain(std::iter::once("cwd"))
             .chain(pid_args.iter().map(|s| s.as_str()))
             .collect();
-        
+
         if let Ok(output) = std::process::Command::new(&lsof).args(&args).output() {
             if output.status.success() {
                 let text = String::from_utf8_lossy(&output.stdout);
@@ -185,7 +188,11 @@ fn macos_batch_fetch_cwd_and_cmd(sys: &System) -> (HashMap<u32, PathBuf>, HashMa
     }
 
     // Batch fetch cmd using ps
-    let pid_list = pids.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(",");
+    let pid_list = pids
+        .iter()
+        .map(|p| p.to_string())
+        .collect::<Vec<_>>()
+        .join(",");
     if let Ok(output) = std::process::Command::new("/bin/ps")
         .args(["-p", &pid_list, "-ww", "-o", "pid=,args="])
         .output()
@@ -201,7 +208,10 @@ fn macos_batch_fetch_cwd_and_cmd(sys: &System) -> (HashMap<u32, PathBuf>, HashMa
                 let parts: Vec<&str> = trimmed.splitn(2, |c: char| c.is_whitespace()).collect();
                 if let Some(pid_str) = parts.first() {
                     if let Ok(pid) = pid_str.trim().parse::<u32>() {
-                        let cmd = parts.get(1).map(|s| s.trim().to_string()).unwrap_or_default();
+                        let cmd = parts
+                            .get(1)
+                            .map(|s| s.trim().to_string())
+                            .unwrap_or_default();
                         if !cmd.is_empty() {
                             cmd_map.insert(pid, cmd);
                         }
