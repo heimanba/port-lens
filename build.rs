@@ -5,7 +5,7 @@ fn main() {
     });
 
     // 将版本号注入到编译时环境变量
-    println!("cargo:rustc-env=PORT_LENS_BUILD_VERSION={}", version);
+    println!("cargo:rustc-env=PORT_LENS_BUILD_VERSION={version}");
 
     // 如果环境变量变化，重新编译
     println!("cargo:rerun-if-env-changed=PORT_LENS_VERSION");
