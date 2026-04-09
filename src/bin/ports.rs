@@ -1,9 +1,12 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
+const VERSION: &str = env!("PORT_LENS_BUILD_VERSION");
+
 #[derive(Parser)]
 #[command(
     name = "ports",
+    version = VERSION,
     about = "A beautiful CLI tool to see what's running on your ports"
 )]
 struct Cli {

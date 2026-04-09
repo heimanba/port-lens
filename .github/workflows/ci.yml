@@ -53,6 +53,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
 
       - name: cargo build --release
+        env:
+          PORT_LENS_VERSION: ${{ github.ref_name }}
         run: cargo build --release
 
       - name: Create archive

@@ -5,6 +5,7 @@ edition = "2024"
 description = "A beautiful CLI tool to see what's running on your ports"
 license = "MIT"
 autobins = false
+build = "build.rs"
 
 [[bin]]
 name = "ports"

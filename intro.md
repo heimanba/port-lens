@@ -35,8 +35,9 @@ ports --all
 ### 深挖某个端口
 
 ```bash
-ports 3000
+ports 8000
 ```
+![](https://img.alicdn.com/imgextra/i4/O1CN017Jwquj1COZFowfCdT_!!6000000000071-2-tps-1520-336.png)
 
 展开进程树、工作目录、Git 分支、内存等详情，还会提示是否要结束该监听。
 
