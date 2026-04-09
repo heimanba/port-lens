@@ -83,15 +83,17 @@ pub fn collect_all() -> Result<Vec<ProcessInfo>> {
 }
 
 fn to_process_info(p: &sysinfo::Process, pid: u32) -> ProcessInfo {
-    let mut cmd: Vec<String> = p
+    let cmd: Vec<String> = p
         .cmd()
         .iter()
         .map(|s| s.to_string_lossy().into_owned())
         .collect();
-    let mut cwd: Option<PathBuf> = p.cwd().map(std::path::Path::to_path_buf);
+    let cwd: Option<PathBuf> = p.cwd().map(std::path::Path::to_path_buf);
 
     #[cfg(target_os = "macos")]
-    {
+    let (cmd, cwd) = {
+        let mut cmd = cmd;
+        let mut cwd = cwd;
         cwd = cwd.or_else(|| macos_cwd_via_lsof(pid));
         if macos_cmd_needs_ps_enrichment(&cmd)
             && let Some(line) = macos_cmd_via_ps(pid)
@@ -99,7 +101,8 @@ fn to_process_info(p: &sysinfo::Process, pid: u32) -> ProcessInfo {
             // One argv string: `detect` uses `cmd.join(" ")`, same as substring matching on full ps line.
             cmd = vec![line];
         }
-    }
+        (cmd, cwd)
+    };
 
     ProcessInfo {
         pid,

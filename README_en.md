@@ -37,6 +37,8 @@ ports
 ports --help
 ```
 
+Pushing a **`v*`** tag runs GitHub Actions release jobs that publish a `.tar.gz` binary archive for **Linux (Ubuntu)** and **macOS** each; there is no Windows build.
+
 ## Commands
 
 | Command | Description |

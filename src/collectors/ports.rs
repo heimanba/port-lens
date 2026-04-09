@@ -295,27 +295,25 @@ mod platform {
     }
 
     fn collect_from_ss_or_netstat() -> Result<Vec<ListeningPort>> {
-        if let Ok(cmd) = which::which("ss") {
-            if let Ok(out) = Command::new(cmd).args(["-tlnp"]).output()
-                && out.status.success()
-            {
-                let text = std::str::from_utf8(&out.stdout).unwrap_or("");
-                let parsed = parse_ss_output(text);
-                if !parsed.is_empty() {
-                    return Ok(parsed);
-                }
+        if let Ok(cmd) = which::which("ss")
+            && let Ok(out) = Command::new(cmd).args(["-tlnp"]).output()
+            && out.status.success()
+        {
+            let text = std::str::from_utf8(&out.stdout).unwrap_or("");
+            let parsed = parse_ss_output(text);
+            if !parsed.is_empty() {
+                return Ok(parsed);
             }
         }
 
-        if let Ok(cmd) = which::which("netstat") {
-            if let Ok(out) = Command::new(cmd).args(["-tlnp"]).output()
-                && out.status.success()
-            {
-                let text = std::str::from_utf8(&out.stdout).unwrap_or("");
-                let parsed = parse_netstat_output(text);
-                if !parsed.is_empty() {
-                    return Ok(parsed);
-                }
+        if let Ok(cmd) = which::which("netstat")
+            && let Ok(out) = Command::new(cmd).args(["-tlnp"]).output()
+            && out.status.success()
+        {
+            let text = std::str::from_utf8(&out.stdout).unwrap_or("");
+            let parsed = parse_netstat_output(text);
+            if !parsed.is_empty() {
+                return Ok(parsed);
             }
         }
 
@@ -364,10 +362,10 @@ mod platform {
             let pid: u32 = pid_str.to_string_lossy().parse().ok()?;
             let fd_dir = format!("/proc/{pid}/fd");
             for fd in fs::read_dir(&fd_dir).ok()?.flatten() {
-                if let Ok(link) = fs::read_link(fd.path()) {
-                    if link.to_string_lossy() == target {
-                        return Some(pid);
-                    }
+                if let Ok(link) = fs::read_link(fd.path())
+                    && link.to_string_lossy() == target
+                {
+                    return Some(pid);
                 }
             }
         }

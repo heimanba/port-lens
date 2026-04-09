@@ -37,6 +37,8 @@ ports
 ports --help
 ```
 
+向仓库推送 **`v*`** 标签时，GitHub Actions 会为 **Linux（ubuntu）** 与 **macOS** 各生成一份 `.tar.gz` 预编译包；不提供 Windows 构建。
+
 ## 命令
 
 | 命令 | 说明 |

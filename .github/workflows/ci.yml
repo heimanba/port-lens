@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest]
 
     steps:
       - uses: actions/checkout@v4
@@ -45,7 +45,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, macos-latest]
 
     steps:
       - uses: actions/checkout@v4
@@ -62,21 +62,12 @@ jobs:
           set -euo pipefail
           VERSION="${GITHUB_REF_NAME}"
           mkdir -p "pack/port-lens-${VERSION}"
-          if [ "${RUNNER_OS}" = "Windows" ]; then
-            cp target/release/ports.exe "pack/port-lens-${VERSION}/"
-          else
-            cp target/release/ports "pack/port-lens-${VERSION}/"
-          fi
+          cp target/release/ports "pack/port-lens-${VERSION}/"
           OS_LOWER=$(echo "${RUNNER_OS}" | tr '[:upper:]' '[:lower:]')
           ARCH_LOWER=$(echo "${RUNNER_ARCH}" | tr '[:upper:]' '[:lower:]')
           NAME="port-lens-${VERSION}-${OS_LOWER}-${ARCH_LOWER}"
-          if [ "${RUNNER_OS}" = "Windows" ]; then
-            tar -a -c -f "${NAME}.zip" -C pack "port-lens-${VERSION}"
-            echo "archive=${NAME}.zip" >> "$GITHUB_OUTPUT"
-          else
-            tar czf "${NAME}.tar.gz" -C pack "port-lens-${VERSION}"
-            echo "archive=${NAME}.tar.gz" >> "$GITHUB_OUTPUT"
-          fi
+          tar czf "${NAME}.tar.gz" -C pack "port-lens-${VERSION}"
+          echo "archive=${NAME}.tar.gz" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v4
         with:
