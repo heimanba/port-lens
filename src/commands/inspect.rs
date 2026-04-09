@@ -1,7 +1,7 @@
 //! `ports <port>` — detailed view and optional kill.
 
 use anyhow::{Context, Result};
-use dialoguer::Confirm;
+use dialoguer::{Confirm, Select};
 use sysinfo::{Pid, System};
 
 use crate::collectors;
@@ -11,8 +11,86 @@ use crate::display::table::format_bytes_mb;
 
 pub async fn run(port: u16) -> Result<()> {
     let listeners = collectors::ports::collect()?;
-    let pid = collectors::ports::unique_pid_for_port(&listeners, port)
-        .with_context(|| format!("cannot resolve a single listener for :{port}"))?;
+
+    // 获取所有监听该端口的 PID
+    let pids: Vec<u32> = listeners
+        .iter()
+        .filter(|l| l.port == port)
+        .map(|l| l.pid)
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+
+    if pids.is_empty() {
+        anyhow::bail!("nothing is listening on port {port}");
+    }
+
+    // 如果只有一个进程，直接显示详情
+    // 如果有多个进程，让用户选择
+    let pid = if pids.len() == 1 {
+        pids[0]
+    } else {
+        select_pid_from_list(port, &pids).await?
+    };
+
+    show_process_details(port, pid).await
+}
+
+/// 当多个进程监听同一端口时，显示列表让用户选择
+async fn select_pid_from_list(port: u16, pids: &[u32]) -> Result<u32> {
+    let (sys, pid_map) = collectors::processes::snapshot_pids(pids)?;
+
+    println!();
+    println!("Multiple processes are listening on port {port}:");
+    println!();
+
+    // 构建选择列表
+    let mut options: Vec<String> = Vec::new();
+    let mut pid_list: Vec<u32> = Vec::new();
+
+    for pid in pids {
+        if let Some(proc) = pid_map.get(pid) {
+            let fw = detect(&proc.cmd, proc.cwd.as_deref());
+            let project = common::project_label(proc.cwd.as_deref());
+            let memory = format_bytes_mb(proc.memory_bytes);
+            let status = common::classify_listener(proc, &sys);
+
+            let option = format!(
+                "PID {:<6} │ {:<15} │ {:<12} │ {:<10} │ {} │ {}",
+                pid,
+                truncate(&proc.name, 15),
+                truncate(&project, 12),
+                truncate(fw.display_name(), 10),
+                memory,
+                status.as_str()
+            );
+            options.push(option);
+            pid_list.push(*pid);
+        }
+    }
+
+    if options.is_empty() {
+        anyhow::bail!("all processes disappeared");
+    }
+
+    // 使用 dialoguer 让用户选择
+    let selection = Select::new()
+        .with_prompt("Select a process to inspect (or press Esc to cancel)")
+        .items(&options)
+        .default(0)
+        .interact_opt()?;
+
+    match selection {
+        Some(index) => Ok(pid_list[index]),
+        None => {
+            println!("\nCancelled.");
+            std::process::exit(0);
+        }
+    }
+}
+
+/// 显示单个进程的详细信息
+async fn show_process_details(port: u16, pid: u32) -> Result<()> {
     let (sys, mut pid_map) = collectors::processes::snapshot_pids(&[pid])?;
     let proc = pid_map
         .remove(&pid)
@@ -53,6 +131,15 @@ pub async fn run(port: u16) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// 截断字符串到指定长度
+fn truncate(s: &str, max_len: usize) -> String {
+    if s.len() <= max_len {
+        s.to_string()
+    } else {
+        format!("{}...", &s[..max_len.saturating_sub(3)])
+    }
 }
 
 fn print_ancestry(sys: &System, mut pid: u32) {
