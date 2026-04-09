@@ -34,12 +34,15 @@ mod tests {
     fn resolve_finds_parent_package_json() {
         let nanos = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_nanos();
+            .map(|d| d.as_nanos())
+            .unwrap_or_else(|e| panic!("system time before UNIX epoch: {e:?}"));
         let base = std::env::temp_dir().join(format!("port-lens-pr-{nanos}"));
         let nested = base.join("apps").join("svc").join("bin");
-        fs::create_dir_all(&nested).unwrap();
-        fs::write(base.join("package.json"), "{}").unwrap();
+        fs::create_dir_all(&nested).unwrap_or_else(|e| {
+            panic!("create_dir_all {}: {e}", nested.display());
+        });
+        let pkg = base.join("package.json");
+        fs::write(&pkg, "{}").unwrap_or_else(|e| panic!("write {}: {e}", pkg.display()));
         assert_eq!(
             resolve_project_root(&nested).as_deref(),
             Some(base.as_path())
