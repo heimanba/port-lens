@@ -124,7 +124,9 @@ fn to_process_info_macos(
 
     // Use batch-fetched data if available
     cwd = cwd.or(cwd_from_lsof);
-    if macos_cmd_needs_ps_enrichment(&cmd) && let Some(line) = cmd_from_ps {
+    if macos_cmd_needs_ps_enrichment(&cmd)
+        && let Some(line) = cmd_from_ps
+    {
         cmd = vec![line];
     }
 
