@@ -5,10 +5,22 @@ use std::io::{self, Write};
 use owo_colors::OwoColorize;
 use tabled::Table;
 use tabled::builder::Builder;
-use tabled::settings::Style;
+use tabled::settings::{Style, Width, peaker::PriorityMax};
 
 use crate::commands::common::ListenerStatus;
 use crate::locale::UiLang;
+
+/// Get terminal width, default to 80 if unavailable
+fn get_terminal_width() -> usize {
+    crossterm::terminal::size()
+        .map(|(w, _)| w as usize)
+        .unwrap_or(80)
+}
+
+/// Minimum reasonable width for port table (7 columns with some content)
+const MIN_PORT_TABLE_WIDTH: usize = 80;
+/// Minimum reasonable width for ps table (8 columns)
+const MIN_PS_TABLE_WIDTH: usize = 90;
 
 /// Horizontal line length between `┌`/`└` and `┐`/`┘` (inner width between `│` columns).
 const BANNER_INNER_WIDTH: usize = 37;
@@ -58,6 +70,10 @@ pub fn print_port_table(
 
     let mut table: Table = builder.build();
     table.with(Style::modern_rounded());
+    
+    // Limit table width to terminal width, but ensure minimum readability
+    let term_width = get_terminal_width().max(MIN_PORT_TABLE_WIDTH);
+    table.with(Width::truncate(term_width).priority(PriorityMax::new(false)));
 
     let mut stdout = io::stdout().lock();
     write!(stdout, "{table}")?;
@@ -98,6 +114,11 @@ pub fn print_ps_table(rows: &[PsTableRow]) -> io::Result<()> {
 
     let mut table: Table = builder.build();
     table.with(Style::modern_rounded());
+    
+    // Limit table width to terminal width, but ensure minimum readability
+    let term_width = get_terminal_width().max(MIN_PS_TABLE_WIDTH);
+    table.with(Width::truncate(term_width).priority(PriorityMax::new(false)));
+    
     let mut stdout = io::stdout().lock();
     write!(stdout, "{table}")?;
     writeln!(stdout)?;
