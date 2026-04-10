@@ -70,7 +70,7 @@ pub fn print_port_table(
 
     let mut table: Table = builder.build();
     table.with(Style::modern_rounded());
-    
+
     // Limit table width to terminal width, but ensure minimum readability
     let term_width = get_terminal_width().max(MIN_PORT_TABLE_WIDTH);
     table.with(Width::truncate(term_width).priority(PriorityMax::new(false)));
@@ -114,11 +114,11 @@ pub fn print_ps_table(rows: &[PsTableRow]) -> io::Result<()> {
 
     let mut table: Table = builder.build();
     table.with(Style::modern_rounded());
-    
+
     // Limit table width to terminal width, but ensure minimum readability
     let term_width = get_terminal_width().max(MIN_PS_TABLE_WIDTH);
     table.with(Width::truncate(term_width).priority(PriorityMax::new(false)));
-    
+
     let mut stdout = io::stdout().lock();
     write!(stdout, "{table}")?;
     writeln!(stdout)?;
