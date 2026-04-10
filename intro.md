@@ -54,6 +54,7 @@ ports kill 3000 5173
 ```bash
 ports ps
 ```
+![](https://img.alicdn.com/imgextra/i4/O1CN01gCdIPR1rgnGHLP0y8_!!6000000005661-2-tps-2406-1214.png)
 
 带 CPU、内存、框架线索，方便判断是不是昨天忘关的服务。`--all` 不限于常见服务类型。
 
