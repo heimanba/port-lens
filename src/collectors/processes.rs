@@ -41,11 +41,29 @@ pub fn snapshot_pids(pids: &[u32]) -> Result<(System, HashMap<u32, ProcessInfo>)
     let mut sys = System::new();
     sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
 
+    #[cfg(target_os = "macos")]
+    let (cwd_map, cmd_map) = macos_batch_fetch_cwd_and_cmd(pids);
+
     let mut map = HashMap::new();
     for &pid in pids {
         let spid = sysinfo::Pid::from_u32(pid);
         if let Some(p) = sys.process(spid) {
-            map.insert(pid, to_process_info(p, pid));
+            #[cfg(target_os = "macos")]
+            {
+                map.insert(
+                    pid,
+                    to_process_info_macos(
+                        p,
+                        pid,
+                        cwd_map.get(&pid).cloned(),
+                        cmd_map.get(&pid).cloned(),
+                    ),
+                );
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                map.insert(pid, to_process_info(p, pid));
+            }
         }
     }
 
@@ -60,9 +78,29 @@ pub fn collect_for_pids(pids: &[u32]) -> Result<Vec<ProcessInfo>> {
 
     let sysinfo_pids: Vec<sysinfo::Pid> = pids.iter().map(|p| sysinfo::Pid::from_u32(*p)).collect();
 
+    #[cfg(target_os = "macos")]
+    let (cwd_map, cmd_map) = macos_batch_fetch_cwd_and_cmd(pids);
+
     let infos = sysinfo_pids
         .iter()
-        .filter_map(|pid| sys.process(*pid).map(|p| to_process_info(p, pid.as_u32())))
+        .filter_map(|pid| {
+            sys.process(*pid).map(|p| {
+                let pid_u32 = pid.as_u32();
+                #[cfg(target_os = "macos")]
+                {
+                    return to_process_info_macos(
+                        p,
+                        pid_u32,
+                        cwd_map.get(&pid_u32).cloned(),
+                        cmd_map.get(&pid_u32).cloned(),
+                    );
+                }
+                #[cfg(not(target_os = "macos"))]
+                {
+                    to_process_info(p, pid_u32)
+                }
+            })
+        })
         .collect();
 
     Ok(infos)
@@ -73,18 +111,36 @@ pub fn collect_all() -> Result<Vec<ProcessInfo>> {
     let mut sys = System::new();
     sys.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
 
+    #[cfg(target_os = "macos")]
+    let all_pids: Vec<u32> = sys.processes().keys().map(|p| p.as_u32()).collect();
+    #[cfg(target_os = "macos")]
+    let (cwd_map, cmd_map) = macos_batch_fetch_cwd_and_cmd(&all_pids);
+
     let infos = sys
         .processes()
         .iter()
         .map(|(pid, p)| {
             let pid_u32 = pid.as_u32();
-            to_process_info(p, pid_u32)
+            #[cfg(target_os = "macos")]
+            {
+                return to_process_info_macos(
+                    p,
+                    pid_u32,
+                    cwd_map.get(&pid_u32).cloned(),
+                    cmd_map.get(&pid_u32).cloned(),
+                );
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                to_process_info(p, pid_u32)
+            }
         })
         .collect();
 
     Ok(infos)
 }
 
+#[cfg(not(target_os = "macos"))]
 fn to_process_info(p: &sysinfo::Process, pid: u32) -> ProcessInfo {
     let cmd: Vec<String> = p
         .cmd()
@@ -108,7 +164,6 @@ fn to_process_info(p: &sysinfo::Process, pid: u32) -> ProcessInfo {
 }
 
 #[cfg(target_os = "macos")]
-#[allow(dead_code)]
 fn to_process_info_macos(
     p: &sysinfo::Process,
     pid: u32,
@@ -123,7 +178,7 @@ fn to_process_info_macos(
     let mut cwd: Option<PathBuf> = p.cwd().map(std::path::Path::to_path_buf);
 
     // Use batch-fetched data if available
-    cwd = cwd.or(cwd_from_lsof);
+    cwd = cwd_from_lsof.or(cwd);
     if macos_cmd_needs_ps_enrichment(&cmd)
         && let Some(line) = cmd_from_ps
     {
@@ -147,76 +202,75 @@ fn to_process_info_macos(
 /// Batch fetch cwd and cmd for all processes using a single lsof and ps command.
 /// Returns (cwd_map, cmd_map) where keys are pid.
 #[cfg(target_os = "macos")]
-#[allow(dead_code)]
-fn macos_batch_fetch_cwd_and_cmd(sys: &System) -> (HashMap<u32, PathBuf>, HashMap<u32, String>) {
+fn macos_batch_fetch_cwd_and_cmd(pids: &[u32]) -> (HashMap<u32, PathBuf>, HashMap<u32, String>) {
+    const BATCH_SIZE: usize = 256;
+
     let mut cwd_map = HashMap::new();
     let mut cmd_map = HashMap::new();
 
-    // Collect all PIDs
-    let pids: Vec<u32> = sys.processes().keys().map(|p| p.as_u32()).collect();
     if pids.is_empty() {
         return (cwd_map, cmd_map);
     }
 
-    // Batch fetch cwd using lsof
-    if let Ok(lsof) = which::which("lsof") {
-        let pid_args: Vec<String> = pids
-            .iter()
-            .flat_map(|pid| ["-p".to_string(), pid.to_string()])
-            .collect();
-        let args: Vec<&str> = std::iter::once("-a")
-            .chain(std::iter::once("-d"))
-            .chain(std::iter::once("cwd"))
-            .chain(pid_args.iter().map(std::string::String::as_str))
-            .collect();
+    for chunk in pids.chunks(BATCH_SIZE) {
+        // Batch fetch cwd using lsof
+        if let Ok(lsof) = which::which("lsof") {
+            let pid_args: Vec<String> = chunk
+                .iter()
+                .flat_map(|pid| ["-p".to_string(), pid.to_string()])
+                .collect();
+            let args: Vec<&str> = std::iter::once("-a")
+                .chain(std::iter::once("-d"))
+                .chain(std::iter::once("cwd"))
+                .chain(pid_args.iter().map(std::string::String::as_str))
+                .collect();
 
-        if let Ok(output) = std::process::Command::new(&lsof).args(&args).output()
-            && output.status.success()
-        {
-            let text = String::from_utf8_lossy(&output.stdout);
-            for line in text.lines().skip(1) {
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() < 9 {
-                    continue;
-                }
-                if let Ok(pid) = parts[1].parse::<u32>() {
-                    let path = parts[8..].join(" ");
-                    if path.starts_with('/') {
-                        cwd_map.insert(pid, PathBuf::from(path));
+            if let Ok(output) = std::process::Command::new(&lsof).args(&args).output() {
+                let text = String::from_utf8_lossy(&output.stdout);
+                for line in text.lines().skip(1) {
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if parts.len() < 9 {
+                        continue;
+                    }
+                    if let Ok(pid) = parts[1].parse::<u32>() {
+                        let path = parts[8..].join(" ");
+                        if path.starts_with('/') {
+                            cwd_map.insert(pid, PathBuf::from(path));
+                        }
                     }
                 }
             }
         }
-    }
 
-    // Batch fetch cmd using ps
-    let pid_list = pids
-        .iter()
-        .map(std::string::ToString::to_string)
-        .collect::<Vec<_>>()
-        .join(",");
-    if let Ok(output) = std::process::Command::new("/bin/ps")
-        .args(["-p", &pid_list, "-ww", "-o", "pid=,args="])
-        .output()
-        && output.status.success()
-    {
-        let text = String::from_utf8_lossy(&output.stdout);
-        for line in text.lines() {
-            let trimmed = line.trim();
-            if trimmed.is_empty() {
-                continue;
-            }
-            // Parse "pid args" format
-            let parts: Vec<&str> = trimmed.splitn(2, |c: char| c.is_whitespace()).collect();
-            if let Some(pid_str) = parts.first()
-                && let Ok(pid) = pid_str.trim().parse::<u32>()
-            {
-                let cmd = parts
-                    .get(1)
-                    .map(|s| s.trim().to_string())
-                    .unwrap_or_default();
-                if !cmd.is_empty() {
-                    cmd_map.insert(pid, cmd);
+        // Batch fetch cmd using ps
+        let pid_list = chunk
+            .iter()
+            .map(std::string::ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(",");
+        if let Ok(output) = std::process::Command::new("/bin/ps")
+            .args(["-p", &pid_list, "-ww", "-o", "pid=,args="])
+            .output()
+            && output.status.success()
+        {
+            let text = String::from_utf8_lossy(&output.stdout);
+            for line in text.lines() {
+                let trimmed = line.trim();
+                if trimmed.is_empty() {
+                    continue;
+                }
+                // Parse "pid args" format
+                let parts: Vec<&str> = trimmed.splitn(2, |c: char| c.is_whitespace()).collect();
+                if let Some(pid_str) = parts.first()
+                    && let Ok(pid) = pid_str.trim().parse::<u32>()
+                {
+                    let cmd = parts
+                        .get(1)
+                        .map(|s| s.trim().to_string())
+                        .unwrap_or_default();
+                    if !cmd.is_empty() {
+                        cmd_map.insert(pid, cmd);
+                    }
                 }
             }
         }
@@ -253,7 +307,6 @@ fn macos_cwd_via_lsof(pid: u32) -> Option<PathBuf> {
 }
 
 #[cfg(target_os = "macos")]
-#[allow(dead_code)]
 fn macos_cmd_needs_ps_enrichment(cmd: &[String]) -> bool {
     if cmd.is_empty() {
         return true;

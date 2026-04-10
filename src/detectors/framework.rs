@@ -251,5 +251,13 @@ fn detect_from_cmd(cmd: &[String]) -> Option<Framework> {
         return Some(Framework::Nuxt);
     }
 
+    // Generic runtime fallback when we have command text but no specific framework signal.
+    if argv.contains("node") {
+        return Some(Framework::NodeGeneric);
+    }
+    if argv.contains("python") {
+        return Some(Framework::PythonGeneric);
+    }
+
     None
 }
